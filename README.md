@@ -95,4 +95,6 @@ This MVP does not provide semantic correctness, contradiction detection, securit
 npm test
 ```
 
-License has not been selected yet. This repository is prepared for review and is not a public release.
+## License
+
+MIT. See [LICENSE](LICENSE).

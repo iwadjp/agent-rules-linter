@@ -2,6 +2,15 @@
   "name": "agent-rules-linter",
   "version": "0.1.0",
   "description": "A small CLI that checks repository-local AI agent instruction files.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/iwadjp/agent-rules-linter.git"
+  },
+  "bugs": {
+    "url": "https://github.com/iwadjp/agent-rules-linter/issues"
+  },
+  "homepage": "https://github.com/iwadjp/agent-rules-linter#readme",
   "type": "module",
   "bin": {
     "agent-rules-linter": "bin/agent-rules-linter.js"
