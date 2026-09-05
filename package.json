@@ -1,0 +1,20 @@
+{
+  "name": "agent-rules-linter",
+  "version": "0.1.0",
+  "description": "A small CLI that checks repository-local AI agent instruction files.",
+  "type": "module",
+  "bin": {
+    "agent-rules-linter": "bin/agent-rules-linter.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ]
+}
