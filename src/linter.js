@@ -21,7 +21,9 @@ export class LinterInputError extends Error {
 
 function displayPath(filePath, cwd) {
   const relative = path.relative(cwd, filePath);
-  return relative && !relative.startsWith('..') ? relative : filePath;
+  // Outside the working directory, keep ../ paths rather than printing the absolute local path.
+  // Only another drive (no relative form) falls back to the absolute path.
+  return relative && !path.isAbsolute(relative) ? relative : filePath;
 }
 
 function countLines(content) {

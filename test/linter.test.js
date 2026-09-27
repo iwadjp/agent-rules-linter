@@ -23,6 +23,10 @@ function write(directory, name, content) {
   return file;
 }
 
+function escape(text) {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 function runCli(directory, args) {
   return spawnSync(process.execPath, [cli, ...args], {
     cwd: directory,
@@ -157,6 +161,30 @@ describe('Agent Rules Linter MVP', () => {
       assert.ok(!result.stderr.includes(directory), 'error must not print the absolute local path');
     });
   }
+
+  it('shows inputs outside the working directory as relative paths, not absolute local paths', () => {
+    const directory = tempRepo();
+    write(directory, 'root/CLAUDE.md', '# Root\n\n## A\n## A\n');
+    write(directory, 'out side/CLAUDE.md', '# Outside\n');
+    const cwd = path.join(directory, 'root', 'sub');
+    fs.mkdirSync(cwd);
+
+    const text = runCli(cwd, ['../CLAUDE.md', path.join(directory, 'out side', 'CLAUDE.md')]);
+    assert.equal(text.status, 0);
+    assert.match(text.stdout, new RegExp(`^- ${escape(path.join('..', 'CLAUDE.md'))}: `, 'm'));
+    assert.match(text.stdout, new RegExp(`${escape(path.join('..', 'CLAUDE.md'))}:4 — Duplicate heading`));
+    assert.match(text.stdout, new RegExp(`^- ${escape(path.join('..', '..', 'out side', 'CLAUDE.md'))}: `, 'm'));
+    assert.ok(!text.stdout.includes(directory), 'report must not print the absolute local path');
+
+    const markdown = runCli(cwd, ['--output', 'report.md', '../CLAUDE.md']);
+    assert.equal(markdown.status, 0);
+    const report = fs.readFileSync(path.join(cwd, 'report.md'), 'utf8');
+    assert.match(report, new RegExp(escape(path.join('..', 'CLAUDE.md'))));
+    assert.ok(!report.includes(directory), 'Markdown report must not contain the absolute local path');
+
+    const inside = runCli(path.join(directory, 'root'), [path.join(directory, 'root', 'CLAUDE.md')]);
+    assert.match(inside.stdout, /^- CLAUDE\.md: /m);
+  });
 
   it('rejects an output that is a hard link to an input file', () => {
     const directory = tempRepo();
