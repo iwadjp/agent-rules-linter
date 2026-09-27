@@ -101,7 +101,16 @@ export function main(args) {
     const report = outputFormat === 'markdown' ? formatMarkdown(result) : formatTerminal(result);
 
     if (parsed.options.output) {
-      fs.writeFileSync(path.resolve(cwd, parsed.options.output), `${report}\n`, 'utf8');
+      const outputPath = path.resolve(cwd, parsed.options.output);
+      const outputStat = fs.statSync(outputPath, { bigint: true, throwIfNoEntry: false });
+      // File identity also catches aliases and hard links to an input file.
+      if (outputStat && result.files.some((file) => {
+        const inputStat = fs.statSync(file.absoluteFile, { bigint: true });
+        return outputStat.dev === inputStat.dev && outputStat.ino === inputStat.ino;
+      })) {
+        throw new LinterInputError(`--output must not overwrite an input file: ${parsed.options.output}`);
+      }
+      fs.writeFileSync(outputPath, `${report}\n`, 'utf8');
       console.log(`Wrote Markdown report: ${parsed.options.output}`);
     } else {
       console.log(report);

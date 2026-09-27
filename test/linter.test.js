@@ -117,4 +117,54 @@ describe('Agent Rules Linter MVP', () => {
     const strict = runCli(directory, ['--fail-on', 'warning', 'CLAUDE.md']);
     assert.equal(strict.status, 1);
   });
+
+  for (const [name, args] of [
+    ['explicit input', ['--output', 'AGENTS.md', 'AGENTS.md']],
+    ['automatically detected input', ['--output', 'AGENTS.md']],
+    ['normalized path alias', ['--output', './AGENTS.md', 'AGENTS.md']],
+    ['one of multiple inputs', ['--output', 'AGENTS.md', 'CLAUDE.md', 'AGENTS.md']]
+  ]) {
+    it(`rejects an output that overwrites ${name}`, () => {
+      const directory = tempRepo();
+      const original = '# Rules\n\nKeep these instructions.\n';
+      const input = write(directory, 'AGENTS.md', original);
+      write(directory, 'CLAUDE.md', '# Claude rules\n');
+
+      const result = runCli(directory, args);
+
+      assert.equal(result.status, 2);
+      assert.match(result.stderr, /output.*input file/i);
+      assert.doesNotMatch(result.stdout, /Wrote Markdown report/);
+      assert.equal(fs.readFileSync(input, 'utf8'), original);
+      assert.equal(fs.readFileSync(path.join(directory, 'CLAUDE.md'), 'utf8'), '# Claude rules\n');
+    });
+  }
+
+  it('rejects an output that is a hard link to an input file', () => {
+    const directory = tempRepo();
+    const original = '# Rules\n\nKeep these instructions.\n';
+    const input = write(directory, 'AGENTS.md', original);
+    const output = path.join(directory, 'report.md');
+    fs.linkSync(input, output);
+
+    const result = runCli(directory, ['--output', 'report.md', 'AGENTS.md']);
+
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /output.*input file/i);
+    assert.equal(fs.readFileSync(input, 'utf8'), original);
+    assert.equal(fs.readFileSync(output, 'utf8'), original);
+  });
+
+  it('can replace a separate existing report without changing the input', () => {
+    const directory = tempRepo();
+    const original = '# Rules\n\nKeep these instructions.\n';
+    const input = write(directory, 'AGENTS.md', original);
+    const output = write(directory, 'report.md', 'Old report\n');
+
+    const result = runCli(directory, ['--output', 'report.md', 'AGENTS.md']);
+
+    assert.equal(result.status, 0);
+    assert.match(fs.readFileSync(output, 'utf8'), /# Agent Rules Linter Report/);
+    assert.equal(fs.readFileSync(input, 'utf8'), original);
+  });
 });
