@@ -66,17 +66,23 @@ function pathCandidates(line) {
   return [...candidates];
 }
 
-function findBrokenPaths(content, filePath, cwd) {
+// A reference counts as existing if it resolves from the working directory or from the instruction
+// file's own directory, so a nested file (e.g. packages/app/CLAUDE.md) checked from the repository
+// root is not reported for paths relative to itself. Neither base may look outside the working directory.
+function findBrokenPaths(content, filePath, cwd, fileDirectory) {
   const findings = [];
   const seen = new Set();
   const lines = content.split(/\r\n|\r|\n/);
+  const bases = fileDirectory && fileDirectory !== cwd ? [cwd, fileDirectory] : [cwd];
 
   lines.forEach((line, index) => {
     for (const reference of pathCandidates(line)) {
-      const resolved = path.resolve(cwd, reference);
-      if (!isInsideRoot(resolved, cwd) || seen.has(reference)) continue;
+      const resolved = bases
+        .map((base) => path.resolve(base, reference))
+        .filter((candidate) => isInsideRoot(candidate, cwd));
+      if (resolved.length === 0 || seen.has(reference)) continue;
       seen.add(reference);
-      if (!fs.existsSync(resolved)) {
+      if (!resolved.some((candidate) => fs.existsSync(candidate))) {
         findings.push({
           severity: 'error',
           rule: 'broken-path',
@@ -155,7 +161,7 @@ export function lintFile(fileName, options = {}) {
     });
   }
 
-  findings.push(...findBrokenPaths(content, shownPath, cwd));
+  findings.push(...findBrokenPaths(content, shownPath, cwd, path.dirname(filePath)));
   findings.push(...findDuplicateHeadings(content, shownPath));
 
   return {

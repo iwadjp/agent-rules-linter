@@ -64,7 +64,7 @@ Default per-file thresholds are:
 
 Change them with `--max-lines` and `--max-tokens`. Size findings are warnings by default; use `--size-severity error` to make them errors.
 
-The path check uses a conservative heuristic for relative paths, common repository directories, and file-like paths. It resolves references relative to the current working directory. URLs, shell flags, Markdown anchors, and version-like numbers are ignored. A path that exists is not reported.
+The path check uses a conservative heuristic for relative paths, common repository directories, and file-like paths. It resolves references relative to the current working directory and to the instruction file's own directory, so a nested file such as `packages/app/CLAUDE.md` can be checked from the repository root. References outside the working directory are not checked. URLs, shell flags, Markdown anchors, and version-like numbers are ignored. A path that exists is not reported.
 
 Headings are compared after trimming whitespace, collapsing whitespace, and case-normalizing. Semantic duplicate detection is not attempted.
 

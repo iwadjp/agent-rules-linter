@@ -70,6 +70,26 @@ describe('Agent Rules Linter MVP', () => {
     assert.match(result.findings[0].message, /docs\/missing\.md/);
   });
 
+  it('resolves paths in a nested instruction file from its own directory too', () => {
+    const directory = tempRepo();
+    write(directory, 'packages/app/docs/guide.md', '# Guide\n');
+    write(directory, 'docs/shared.md', '# Shared\n');
+    write(directory, 'packages/app/CLAUDE.md', 'Read docs/guide.md, docs/shared.md and docs/missing.md.\n');
+    const result = lintFiles(['packages/app/CLAUDE.md'], { cwd: directory });
+    const broken = result.findings.filter((finding) => finding.rule === 'broken-path');
+    assert.deepEqual(broken.map((finding) => finding.message), ['Local path does not exist: docs/missing.md']);
+    const cliResult = runCli(directory, ['packages/app/CLAUDE.md']);
+    assert.equal(cliResult.status, 1, 'the genuinely missing path still fails');
+    assert.doesNotMatch(cliResult.stdout, /docs\/guide\.md/);
+  });
+
+  it('does not look outside the working directory when resolving from the file directory', () => {
+    const directory = tempRepo();
+    write(directory, 'CLAUDE.md', 'See ../outside.md for details.\n');
+    const result = lintFiles(['CLAUDE.md'], { cwd: directory });
+    assert.equal(result.findings.filter((finding) => finding.rule === 'broken-path').length, 0);
+  });
+
   it('reports duplicate normalized headings', () => {
     const directory = tempRepo();
     const file = write(directory, 'CLAUDE.md', '## Testing\n\n##  testing  \n');
