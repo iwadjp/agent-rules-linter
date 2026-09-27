@@ -110,7 +110,18 @@ export function main(args) {
       })) {
         throw new LinterInputError(`--output must not overwrite an input file: ${parsed.options.output}`);
       }
-      fs.writeFileSync(outputPath, `${report}\n`, 'utf8');
+      if (outputStat?.isDirectory()) {
+        throw new LinterInputError(`--output is a directory, not a file: ${parsed.options.output}`);
+      }
+      try {
+        fs.writeFileSync(outputPath, `${report}\n`, 'utf8');
+      } catch (error) {
+        // Name the path as the user typed it, not the absolute local path.
+        if (error.code === 'ENOENT') {
+          throw new LinterInputError(`--output directory does not exist: ${path.dirname(parsed.options.output)}`);
+        }
+        throw error;
+      }
       console.log(`Wrote Markdown report: ${parsed.options.output}`);
     } else {
       console.log(report);

@@ -140,6 +140,24 @@ describe('Agent Rules Linter MVP', () => {
     });
   }
 
+  for (const [name, output, expected] of [
+    ['a missing parent directory', 'no dir/report.md', /--output directory does not exist: no dir/],
+    ['an existing directory', 'sub dir', /--output is a directory, not a file: sub dir/]
+  ]) {
+    it(`explains an output path with ${name} without leaking the absolute path`, () => {
+      const directory = tempRepo();
+      write(directory, 'AGENTS.md', '# Rules\n');
+      fs.mkdirSync(path.join(directory, 'sub dir'));
+
+      const result = runCli(directory, ['--output', output, 'AGENTS.md']);
+
+      assert.equal(result.status, 2);
+      assert.match(result.stderr, expected);
+      assert.doesNotMatch(result.stderr, /ENOENT|EISDIR/);
+      assert.ok(!result.stderr.includes(directory), 'error must not print the absolute local path');
+    });
+  }
+
   it('rejects an output that is a hard link to an input file', () => {
     const directory = tempRepo();
     const original = '# Rules\n\nKeep these instructions.\n';
