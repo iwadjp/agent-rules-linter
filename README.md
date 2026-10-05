@@ -11,18 +11,19 @@ The goal is to make instruction-file maintenance visible in the same way as a li
 
 ## Install and run
 
-Requires Node.js 18 or newer.
+Requires Node.js 18 or newer. This is a source-only release; it is not published to the npm registry. Run it directly from the GitHub repository, from the repository you want to check:
 
 ```text
-npm install
-npx agent-rules-linter
+npx github:iwadjp/agent-rules-linter
 ```
 
 With explicit files:
 
 ```text
-agent-rules-linter CLAUDE.md AGENTS.md
+npx github:iwadjp/agent-rules-linter CLAUDE.md AGENTS.md
 ```
+
+From a clone, `node bin/agent-rules-linter.js` runs the same CLI.
 
 When no files are supplied, the CLI checks `CLAUDE.md` and `AGENTS.md` in the current directory if they exist.
 
@@ -46,13 +47,13 @@ The token figure is an explainable approximation based on character count divide
 Markdown output is available on stdout:
 
 ```text
-agent-rules-linter --format markdown CLAUDE.md
+npx github:iwadjp/agent-rules-linter --format markdown CLAUDE.md
 ```
 
 Or write a Markdown report:
 
 ```text
-agent-rules-linter --output report.md CLAUDE.md
+npx github:iwadjp/agent-rules-linter --output report.md CLAUDE.md
 ```
 
 ## Rules and thresholds
@@ -82,7 +83,7 @@ The CLI can be called from an existing Node.js workflow without a dedicated Mark
 
 ```yaml
 - name: Check agent instruction files
-  run: npx agent-rules-linter --fail-on warning
+  run: npx github:iwadjp/agent-rules-linter --fail-on warning
 ```
 
 ## Limitations
