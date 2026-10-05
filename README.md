@@ -90,6 +90,8 @@ The CLI can be called from an existing Node.js workflow without a dedicated Mark
 
 This MVP does not provide semantic correctness, contradiction detection, security scanning, automatic rewriting or splitting, an LLM integration, a dashboard, telemetry, or a hosted service. The path check is intentionally heuristic and may miss references or require a small amount of configuration in unusual repositories.
 
+Japanese guide: [CLAUDE.md / AGENTS.mdの保守を機械的にチェックする](https://blog2020.iwadjp.com/2026/10/06/claude-md-agents-md-maintenance-check/) — examples, CI exit codes, and the limits of path heuristics and token estimates.
+
 ## Development
 
 ```text
