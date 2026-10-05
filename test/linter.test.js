@@ -65,6 +65,26 @@ describe('Agent Rules Linter MVP', () => {
     assert.equal(strict.exitCode, 1);
   });
 
+  it('ignores absolute, home, environment and drive-letter paths but still reports missing relative ones', () => {
+    const directory = tempRepo();
+    const file = write(
+      directory,
+      'AGENTS.md',
+      [
+        '# Rules',
+        'See /usr/local/share/tool/config.json and /home/me/proj/file.md and /opt/app/run.sh.',
+        'Also D:/iwa/proj/file.md, D:\\iwa\\file.md, ~/notes/n.md, $HOME/x/y.md, ${HOME}/x/y.md, %USERPROFILE%/x/y.md.',
+        'Missing: docs/really-missing.md and ./nope.md'
+      ].join('\n')
+    );
+    const result = lintFiles([file], { cwd: directory });
+    const broken = result.findings.filter((finding) => finding.rule === 'broken-path');
+    assert.deepEqual(broken.map((finding) => finding.message).sort(), [
+      'Local path does not exist: ./nope.md',
+      'Local path does not exist: docs/really-missing.md'
+    ]);
+  });
+
   it('reports broken and existing local path references', () => {
     const directory = tempRepo();
     write(directory, 'docs/guide.md', '# Guide\n');

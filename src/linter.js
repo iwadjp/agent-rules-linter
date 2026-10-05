@@ -61,6 +61,9 @@ function pathCandidates(line) {
 
   for (const pattern of [relativePattern, knownPrefixPattern, filePattern]) {
     for (const match of cleaned.matchAll(pattern)) {
+      // A match glued to an absolute ("/x"), home ("~/x"), env ("$VAR/x", "${VAR}/x", "%VAR%/x") or
+      // drive-letter ("X:/x") anchor is not repo-relative.
+      if (match.index > 0 && /[\/\\$~]/.test(cleaned[match.index - 1])) continue;
       const value = match[0].replace(/[),.;:`'\"]+$/, '');
       if (value && !value.startsWith('-')) candidates.add(value);
     }
