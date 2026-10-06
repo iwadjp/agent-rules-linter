@@ -102,6 +102,56 @@ describe('Agent Rules Linter MVP', () => {
     assert.equal(result.findings[0].line, 3);
   });
 
+  it('ignores headings in backtick and tilde fences in the CLI reproduction', () => {
+    const directory = tempRepo();
+    write(directory, 'acc.md', [
+      '# Project', '## Install', '```bash', '# Install', '## Install', '```',
+      '## Usage', '~~~', '# Usage', '~~~', '## Install'
+    ].join('\n'));
+    const result = lintFiles(['acc.md'], { cwd: directory });
+    assert.deepEqual(result.findings, [{
+      severity: 'warning', rule: 'duplicate-heading', file: 'acc.md', line: 11,
+      message: 'Duplicate heading: Install (first seen at line 2)'
+    }]);
+    const output = runCli(directory, ['acc.md']);
+    assert.equal(output.status, 0);
+    assert.match(output.stdout, /Findings \(1\):/);
+    assert.match(output.stdout, /acc\.md:11 — Duplicate heading: Install \(first seen at line 2\)/);
+  });
+
+  for (const character of ['`', '~']) {
+    it(`keeps shorter, mismatched and non-whitespace fence lines inside a ${character} fence`, () => {
+      const directory = tempRepo();
+      const other = character === '`' ? '~' : '`';
+      write(directory, 'AGENTS.md', [
+        '## Install', `   ${character.repeat(4)}language`, '## Install',
+        character.repeat(3), '## Install', other.repeat(4), '## Install',
+        `${character.repeat(4)} trailing text`, '## Install',
+        `    ${character.repeat(4)}`, '## Install',
+        `   ${character.repeat(5)} \t`, '##  INSTALL  ###'
+      ].join('\r\n'));
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+      assert.deepEqual(result.findings, [{
+        severity: 'warning', rule: 'duplicate-heading', file: 'AGENTS.md', line: 13,
+        message: 'Duplicate heading: INSTALL  ### (first seen at line 1)'
+      }]);
+    });
+
+    it(`ignores headings through EOF in an unclosed ${character} fence`, () => {
+      const directory = tempRepo();
+      write(directory, 'AGENTS.md', ['## Install', character.repeat(3), '## Install', '# Usage', '# Usage'].join('\n'));
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+      assert.deepEqual(result.findings, []);
+    });
+  }
+
+  it('does not start fences with fewer than three characters or more than three spaces', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', ['# Rules', '``', '# Rules', '~~', '# Rules', '    ```', '# Rules', '    ~~~', '# Rules'].join('\n'));
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map((finding) => finding.line), [3, 5, 7, 9]);
+  });
+
   it('supports multiple input files and Markdown output', () => {
     const directory = tempRepo();
     write(directory, 'CLAUDE.md', '# Claude rules\n');
