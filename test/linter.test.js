@@ -213,4 +213,34 @@ describe('Agent Rules Linter MVP', () => {
     assert.match(fs.readFileSync(output, 'utf8'), /# Agent Rules Linter Report/);
     assert.equal(fs.readFileSync(input, 'utf8'), original);
   });
+
+  describe('duplicate-heading and fenced code blocks', () => {
+    function duplicates(text) {
+      const directory = tempRepo();
+      const file = write(directory, 'acc.md', text);
+      return lintFiles([file], { cwd: directory }).findings.filter((f) => f.rule === 'duplicate-heading');
+    }
+
+    it('ignores headings inside backtick and tilde fences', () => {
+      const text = '# Project\n## Install\n```bash\n# Install\n## Install\n```\n## Usage\n~~~\n# Usage\n~~~\n## Install\n';
+      const found = duplicates(text);
+      assert.equal(found.length, 1);
+      assert.equal(found[0].line, 11);
+      assert.equal(found[0].message, 'Duplicate heading: Install (first seen at line 2)');
+    });
+
+    it('does not close a longer fence with a shorter fence line', () => {
+      const found = duplicates('## A\n````\n```\n## A\n```\n````\n## A\n');
+      assert.deepEqual(found.map((f) => f.line), [7]);
+    });
+
+    it('does not close a fence with a different fence character', () => {
+      const found = duplicates('## A\n```\n~~~\n## A\n```\n## A\n');
+      assert.deepEqual(found.map((f) => f.line), [6]);
+    });
+
+    it('treats an unclosed fence as running to the end of the file', () => {
+      assert.equal(duplicates('## A\n```\n## A\n## A\n').length, 0);
+    });
+  });
 });

@@ -103,7 +103,19 @@ function findDuplicateHeadings(content, filePath) {
   const headings = new Map();
   const lines = content.split(/\r\n|\r|\n/);
 
+  let fence = null;
+
   lines.forEach((line, index) => {
+    if (fence) {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/);
+      if (close && close[1][0] === fence.char && close[1].length >= fence.length) fence = null;
+      return;
+    }
+    const open = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (open) {
+      fence = { char: open[1][0], length: open[1].length };
+      return;
+    }
     const match = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*$/);
     if (!match) return;
     const normalized = normalizeHeading(match[1]);
