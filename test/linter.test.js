@@ -74,6 +74,60 @@ describe('Agent Rules Linter MVP', () => {
     assert.match(result.findings[0].message, /docs\/missing\.md/);
   });
 
+  for (const reference of [
+    '/usr/local/share/tool/config.json',
+    '/home/me/proj/file.md',
+    '/opt/app/run.sh',
+    '/docs/missing.md',
+    '/opt/./nope.md',
+    'D:/iwa/proj/file.md',
+    'D:\\iwa\\proj\\file.md',
+    'D:\\iwa/docs/missing.md',
+    'z:/docs/missing.md',
+    '~/notes/n.md',
+    '~/docs/missing.md',
+    '$HOME/x/y.md',
+    '$PROJECT_ROOT/docs/missing.md',
+    '${PROJECT_ROOT}/docs/missing.md',
+    '%PROJECT_ROOT%/docs/missing.md'
+  ]) {
+    it(`ignores anchored path ${reference} without hiding repo-relative paths`, () => {
+      const directory = tempRepo();
+      write(directory, 'docs/guide.md', '# Guide\n');
+      write(directory, 'AGENTS.md', `Read \`${reference}\`, docs/guide.md, docs/really-missing.md and ./nope.md.\n`);
+
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+
+      assert.deepEqual(result.findings.map((finding) => finding.message), [
+        'Local path does not exist: ./nope.md',
+        'Local path does not exist: docs/really-missing.md'
+      ]);
+      assert.equal(result.exitCode, 1);
+    });
+  }
+
+  it('reports only the missing repo-relative path in the acceptance CLI input', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', [
+      '/usr/local/share/tool/config.json',
+      '/home/me/proj/file.md',
+      '/opt/app/run.sh',
+      'D:/iwa/proj/file.md',
+      '~/notes/n.md',
+      '$HOME/x/y.md',
+      'docs/really-missing.md'
+    ].join('\n'));
+
+    const result = runCli(directory, ['AGENTS.md']);
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /Findings \(1\):/);
+    assert.deepEqual(result.stdout.split('\n').filter((line) => line.includes('[broken-path]')), [
+      '- ERROR [broken-path] AGENTS.md:7 — Local path does not exist: docs/really-missing.md'
+    ]);
+  });
+
   it('resolves paths in a nested instruction file from its own directory too', () => {
     const directory = tempRepo();
     write(directory, 'packages/app/docs/guide.md', '# Guide\n');

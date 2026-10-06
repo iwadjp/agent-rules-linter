@@ -48,6 +48,8 @@ function isInsideRoot(candidate, root) {
 function pathCandidates(line) {
   const cleaned = line
     .replace(/https?:\/\/\S+/gi, ' ')
+    // Remove anchored paths as a whole so their suffixes cannot match relative-path patterns.
+    .replace(/(?<![A-Za-z0-9_@./\\~$%{}-])(?:\/|~\/|\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})\/|%[A-Za-z_][A-Za-z0-9_]*%\/|[A-Za-z]:[\\/])[^\s`"'<>()[\],;]*/g, ' ')
     .replace(/\b\d+(?:\.\d+){1,}\b/g, ' ')
     .replace(/--[A-Za-z0-9_-]+(?:=\S+)?/g, ' ');
 
