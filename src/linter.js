@@ -48,6 +48,8 @@ function isInsideRoot(candidate, root) {
 function pathCandidates(line) {
   const cleaned = line
     .replace(/https?:\/\/\S+/gi, ' ')
+    // Remove anchored paths as a whole so their suffixes cannot match relative-path patterns.
+    .replace(/(?<![A-Za-z0-9_@./\\~$%{}-])(?:\/|~\/|\$(?:[A-Za-z_][A-Za-z0-9_]*|\{[A-Za-z_][A-Za-z0-9_]*\})\/|%[A-Za-z_][A-Za-z0-9_]*%\/|[A-Za-z]:[\\/])[^\s`"'<>()[\],;|]*/g, ' ')
     .replace(/\b\d+(?:\.\d+){1,}\b/g, ' ')
     .replace(/--[A-Za-z0-9_-]+(?:=\S+)?/g, ' ');
 
@@ -102,8 +104,21 @@ function findDuplicateHeadings(content, filePath) {
   const findings = [];
   const headings = new Map();
   const lines = content.split(/\r\n|\r|\n/);
+  let fence = null;
 
   lines.forEach((line, index) => {
+    const fenceMatch = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/);
+    if (fence) {
+      if (fenceMatch && fenceMatch[1][0] === fence.character &&
+          fenceMatch[1].length >= fence.length && /^[ \t]*$/.test(fenceMatch[2])) {
+        fence = null;
+      }
+      return;
+    }
+    if (fenceMatch && (fenceMatch[1][0] !== '`' || !fenceMatch[2].includes('`'))) {
+      fence = { character: fenceMatch[1][0], length: fenceMatch[1].length };
+      return;
+    }
     const match = line.match(/^\s{0,3}#{1,6}\s+(.+?)\s*$/);
     if (!match) return;
     const normalized = normalizeHeading(match[1]);

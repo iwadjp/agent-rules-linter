@@ -74,6 +74,70 @@ describe('Agent Rules Linter MVP', () => {
     assert.match(result.findings[0].message, /docs\/missing\.md/);
   });
 
+  for (const reference of [
+    '/usr/local/share/tool/config.json',
+    '/home/me/proj/file.md',
+    '/opt/app/run.sh',
+    '/docs/missing.md',
+    '/opt/./nope.md',
+    'D:/iwa/proj/file.md',
+    'D:\\iwa\\proj\\file.md',
+    'D:\\iwa/docs/missing.md',
+    'z:/docs/missing.md',
+    '~/notes/n.md',
+    '~/docs/missing.md',
+    '$HOME/x/y.md',
+    '$PROJECT_ROOT/docs/missing.md',
+    '${PROJECT_ROOT}/docs/missing.md',
+    '%PROJECT_ROOT%/docs/missing.md'
+  ]) {
+    it(`ignores anchored path ${reference} without hiding repo-relative paths`, () => {
+      const directory = tempRepo();
+      write(directory, 'docs/guide.md', '# Guide\n');
+      write(directory, 'AGENTS.md', `Read \`${reference}\`, docs/guide.md, docs/really-missing.md and ./nope.md.\n`);
+
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+
+      assert.deepEqual(result.findings.map((finding) => finding.message), [
+        'Local path does not exist: ./nope.md',
+        'Local path does not exist: docs/really-missing.md'
+      ]);
+      assert.equal(result.exitCode, 1);
+    });
+  }
+
+  it('reports only the missing repo-relative path in the acceptance CLI input', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', [
+      '/usr/local/share/tool/config.json',
+      '/home/me/proj/file.md',
+      '/opt/app/run.sh',
+      'D:/iwa/proj/file.md',
+      '~/notes/n.md',
+      '$HOME/x/y.md',
+      'docs/really-missing.md'
+    ].join('\n'));
+
+    const result = runCli(directory, ['AGENTS.md']);
+
+    assert.equal(result.status, 1);
+    assert.equal(result.stderr, '');
+    assert.match(result.stdout, /Findings \(1\):/);
+    assert.deepEqual(result.stdout.split('\n').filter((line) => line.includes('[broken-path]')), [
+      '- ERROR [broken-path] AGENTS.md:7 — Local path does not exist: docs/really-missing.md'
+    ]);
+  });
+
+  it('does not hide relative paths next to anchored paths in Markdown tables', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', '| /opt/.config/tool/config.json|docs/really-missing.md|./nope.md|\n');
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map((finding) => finding.message), [
+      'Local path does not exist: ./nope.md',
+      'Local path does not exist: docs/really-missing.md'
+    ]);
+  });
+
   it('resolves paths in a nested instruction file from its own directory too', () => {
     const directory = tempRepo();
     write(directory, 'packages/app/docs/guide.md', '# Guide\n');
@@ -100,6 +164,84 @@ describe('Agent Rules Linter MVP', () => {
     const result = lintFiles([file], { cwd: directory });
     assert.equal(result.findings.filter((finding) => finding.rule === 'duplicate-heading').length, 1);
     assert.equal(result.findings[0].line, 3);
+  });
+
+  it('ignores headings in backtick and tilde fences in the CLI reproduction', () => {
+    const directory = tempRepo();
+    write(directory, 'acc.md', [
+      '# Project', '## Install', '```bash', '# Install', '## Install', '```',
+      '## Usage', '~~~', '# Usage', '~~~', '## Install'
+    ].join('\n'));
+    const result = lintFiles(['acc.md'], { cwd: directory });
+    assert.deepEqual(result.findings, [{
+      severity: 'warning', rule: 'duplicate-heading', file: 'acc.md', line: 11,
+      message: 'Duplicate heading: Install (first seen at line 2)'
+    }]);
+    const output = runCli(directory, ['acc.md']);
+    assert.equal(output.status, 0);
+    assert.match(output.stdout, /Findings \(1\):/);
+    assert.match(output.stdout, /acc\.md:11 — Duplicate heading: Install \(first seen at line 2\)/);
+  });
+
+  for (const character of ['`', '~']) {
+    it(`keeps shorter, mismatched and non-whitespace fence lines inside a ${character} fence`, () => {
+      const directory = tempRepo();
+      const other = character === '`' ? '~' : '`';
+      write(directory, 'AGENTS.md', [
+        '## Install', `   ${character.repeat(4)}language`, '## Install',
+        character.repeat(3), '## Install', other.repeat(4), '## Install',
+        `${character.repeat(4)} trailing text`, '## Install',
+        `    ${character.repeat(4)}`, '## Install',
+        `   ${character.repeat(5)} \t`, '##  INSTALL  ###'
+      ].join('\r\n'));
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+      assert.deepEqual(result.findings, [{
+        severity: 'warning', rule: 'duplicate-heading', file: 'AGENTS.md', line: 13,
+        message: 'Duplicate heading: INSTALL  ### (first seen at line 1)'
+      }]);
+    });
+
+    it(`ignores headings through EOF in an unclosed ${character} fence`, () => {
+      const directory = tempRepo();
+      write(directory, 'AGENTS.md', ['## Install', character.repeat(3), '## Install', '# Usage', '# Usage'].join('\n'));
+      const result = lintFiles(['AGENTS.md'], { cwd: directory });
+      assert.deepEqual(result.findings, []);
+    });
+  }
+
+  it('does not start fences with fewer than three characters or more than three spaces', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', ['# Rules', '``', '# Rules', '~~', '# Rules', '    ```', '# Rules', '    ~~~', '# Rules'].join('\n'));
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map((finding) => finding.line), [3, 5, 7, 9]);
+  });
+
+  it('does not start backtick fences whose info string contains a backtick', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', ['## Install', '```bad`info', '## Install'].join('\n'));
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map((finding) => finding.line), [3]);
+  });
+
+  it('does not close a fence with non-space whitespace after it', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', ['## Install', '```', '```\u00a0', '## Install', '```', '## Install'].join('\n'));
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map((finding) => finding.line), [6]);
+  });
+
+  it('keeps broken-path checks independent of fenced heading suppression', () => {
+    const directory = tempRepo();
+    write(directory, 'AGENTS.md', [
+      '## Install', '```', '## Install', '/opt/config.json', 'docs/really-missing.md',
+      '```', '## Install', './nope.md'
+    ].join('\r'));
+    const result = lintFiles(['AGENTS.md'], { cwd: directory });
+    assert.deepEqual(result.findings.map(({ rule, line, message }) => ({ rule, line, message })), [
+      { rule: 'broken-path', line: 5, message: 'Local path does not exist: docs/really-missing.md' },
+      { rule: 'broken-path', line: 8, message: 'Local path does not exist: ./nope.md' },
+      { rule: 'duplicate-heading', line: 7, message: 'Duplicate heading: Install (first seen at line 1)' }
+    ]);
   });
 
   it('supports multiple input files and Markdown output', () => {
